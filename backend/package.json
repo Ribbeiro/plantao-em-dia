@@ -1,0 +1,24 @@
+{
+  "name": "plantao-em-dia-api",
+  "version": "1.0.0",
+  "description": "API REST do Plantão em Dia: passagem de plantão com resumo SBAR (dados fictícios)",
+  "main": "src/server.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/seed.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^4.22.3",
+    "jsonwebtoken": "^9.0.3"
+  }
+}

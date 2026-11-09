@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo Plantão em Dia</title>
+<style>
+  /* Protótipo de BAIXA fidelidade: apenas cinza, caixas e rótulos. */
+  :root { --linha:#555; --caixa:#e6e6e6; --texto:#222; --fundo:#fafafa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px; font-family: "Comic Sans MS", "Segoe Print", cursive, sans-serif; color: var(--texto); background: var(--fundo); }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 24px; font-size: 14px; }
+  .grade { display: flex; flex-wrap: wrap; gap: 28px; }
+  .tela { width: 240px; }
+  .tela h2 { font-size: 15px; margin: 0 0 4px; }
+  .api { font-family: monospace; font-size: 11px; background: #fff; border: 1px dashed var(--linha); padding: 2px 6px; display: inline-block; margin-bottom: 8px; }
+  .fone { border: 2px solid var(--linha); border-radius: 22px; height: 440px; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; background: #fff; overflow: hidden; }
+  .barra { border-bottom: 2px solid var(--linha); padding-bottom: 6px; font-size: 13px; font-weight: bold; display: flex; justify-content: space-between; }
+  .cx { background: var(--caixa); border: 1.5px solid var(--linha); border-radius: 6px; padding: 6px; font-size: 11px; }
+  .cx.alta { border-left: 10px solid var(--linha); }
+  .bt { border: 2px solid var(--linha); border-radius: 8px; text-align: center; padding: 8px; font-size: 12px; font-weight: bold; }
+  .campo { border: 1.5px solid var(--linha); border-radius: 6px; padding: 6px; font-size: 11px; color: #777; }
+  .linha { display: flex; gap: 6px; }
+  .linha > * { flex: 1; }
+  .nav { margin-top: auto; border-top: 2px solid var(--linha); padding-top: 6px; display: flex; justify-content: space-around; font-size: 10px; }
+  .abas { display: flex; gap: 4px; font-size: 10px; }
+  .abas span { border-bottom: 2px solid var(--linha); flex: 1; text-align: center; padding-bottom: 3px; }
+  .abas span.on { border-bottom-width: 4px; font-weight: bold; }
+  .nota { font-size: 12px; margin-top: 6px; }
+  .esp { flex: 1; }
+  @media (max-width: 560px) { .tela { width: 100%; } }
+</style>
+</head>
+<body>
+<h1>Plantão em Dia – protótipo de baixa fidelidade</h1>
+<p class="sub">8 telas. As marcadas com <span class="api">API</span> consomem a API REST do projeto (mínimo exigido: 3). Dados fictícios.</p>
+
+<div class="grade">
+
+  <section class="tela">
+    <h2>1. Login</h2><span class="api">POST /auth/login</span>
+    <div class="fone">
+      <div class="esp"></div>
+      <div class="cx" style="text-align:center;height:60px">[ logo ]<br>Plantão em Dia</div>
+      <div class="campo">Usuário</div>
+      <div class="campo">Senha ••••••</div>
+      <div class="bt">ENTRAR</div>
+      <div class="nota">depois: escolher setor (GET /setores)</div>
+      <div class="esp"></div>
+    </div>
+  </section>
+
+  <section class="tela">
+    <h2>2. Pacientes do setor</h2><span class="api">GET /setores/:id/pacientes</span>
+    <div class="fone">
+      <div class="barra"><span>Clínica Médica</span><span>⇄ ☺</span></div>
+      <div class="cx">11 pac. | 5 risco alto | 12 atrasadas</div>
+      <div class="cx alta">01 · Nome do paciente ⚠ alergia <b style="float:right">(2)</b><br>diagnóstico</div>
+      <div class="cx alta">02 · Nome do paciente <b style="float:right">(4)</b><br>diagnóstico</div>
+      <div class="cx">03 · Nome do paciente ⚠ <b style="float:right">(1)</b><br>diagnóstico</div>
+      <div class="cx">04 · Nome do paciente <b style="float:right">✓</b><br>diagnóstico</div>
+      <div class="nota">faixa = cor do risco · (n) = pendências</div>
+      <div class="nav"><b>Pacientes</b><span>Pendências</span><span>Plantão</span><span>Histórico</span></div>
+    </div>
+  </section>
+
+  <section class="tela">
+    <h2>3. Detalhe do paciente</h2><span class="api">GET /pacientes/:id</span>
+    <div class="fone">
+      <div class="barra"><span>← Leito CM-01</span><span>⟳</span></div>
+      <div class="cx">Nome · 74 anos · Pneumonia<br>[risco alto] [alergia: X]</div>
+      <div class="abas"><span class="on">Sinais</span><span>Medic.</span><span>Interc.</span><span>Pend.</span></div>
+      <div class="cx">14:10 PA 130/80 FC 88 FR 18<br>T 36,5 SatO2 96% Dor 2</div>
+      <div class="cx">10:00 PA 120/70 FC 92 ...</div>
+      <div class="esp"></div>
+      <div class="bt" style="align-self:flex-end;width:60%">+ Sinais vitais</div>
+    </div>
+  </section>
+
+  <section class="tela">
+    <h2>4. Registrar sinais / intercorrência</h2><span class="api">POST …/sinais-vitais · …/intercorrencias</span>
+    <div class="fone">
+      <div class="barra"><span>← Sinais vitais</span></div>
+      <div class="linha"><div class="campo">PAS</div><div class="campo">PAD</div></div>
+      <div class="linha"><div class="campo">FC</div><div class="campo">FR</div></div>
+      <div class="linha"><div class="campo">Temp</div><div class="campo" style="border-width:3px;color:#222">SatO2 89 ⚠</div></div>
+      <div class="campo">Dor  0 ——●—— 10</div>
+      <div class="campo">Observação</div>
+      <div class="cx">⚠ Atenção: SatO2 baixa</div>
+      <div class="esp"></div>
+      <div class="bt">SALVAR</div>
+    </div>
+  </section>
+
+  <section class="tela">
+    <h2>5. Checklist de medicações</h2><span class="api">PATCH /medicacoes/:id</span>
+    <div class="fone">
+      <div class="abas"><span>Sinais</span><span class="on">Medic.</span><span>Interc.</span><span>Pend.</span></div>
+      <div><b style="font-size:12px">ATRASADAS (1)</b></div>
+      <div class="cx" style="border-width:3px">10:00 Ceftriaxona 1 g EV <span class="bt" style="float:right;padding:2px 6px">✓</span></div>
+      <div><b style="font-size:12px">PRÓXIMOS</b></div>
+      <div class="cx">16:00 Dipirona 1 g EV <span class="bt" style="float:right;padding:2px 6px">✓</span></div>
+      <div class="cx">22:00 Omeprazol 40 mg <span class="bt" style="float:right;padding:2px 6px">✓</span></div>
+      <div><b style="font-size:12px">ADMINISTRADAS</b></div>
+      <div class="cx">06:00 Omeprazol – por Fulano ✔</div>
+    </div>
+  </section>
+
+  <section class="tela">
+    <h2>6. Pendências do setor</h2><span class="api">GET /pendencias?setor=</span>
+    <div class="fone">
+      <div class="barra"><span>Pendências</span></div>
+      <div><b style="font-size:12px">Medicações atrasadas (12)</b></div>
+      <div class="cx">10:00 CM-01 Ceftriaxona <span style="float:right">[✓]</span></div>
+      <div class="cx">12:00 CM-04 Dipirona <span style="float:right">[✓]</span></div>
+      <div><b style="font-size:12px">Exames (7)</b></div>
+      <div class="cx">☐ CM-02 Raio-X de tórax</div>
+      <div><b style="font-size:12px">Procedimentos / Retornos</b></div>
+      <div class="cx">☐ CM-09 Troca de curativo</div>
+      <div class="nav"><span>Pacientes</span><b>Pendências</b><span>Plantão</span><span>Histórico</span></div>
+    </div>
+  </section>
+
+  <section class="tela">
+    <h2>7. Passagem de plantão (SBAR)</h2><span class="api">POST /plantoes · POST /plantoes/:id/confirmar</span>
+    <div class="fone">
+      <div class="barra"><span>← Resumo SBAR</span><span>⧉</span></div>
+      <div class="cx">Turno 07:00–19:00 · por Fulana<br>11 pac · 2 atrasadas · 5 pend.</div>
+      <div class="cx alta"><b>01 Nome</b><br>S: situação…<br>B: histórico…<br>A: avaliação…<br>R: recomendação…</div>
+      <div class="cx">02 Nome ▸</div>
+      <div class="esp"></div>
+      <div class="bt">LI E ASSUMO O PLANTÃO</div>
+      <div class="nota">antes: botão "Encerrar meu turno"</div>
+    </div>
+  </section>
+
+  <section class="tela">
+    <h2>8. Histórico de plantões</h2><span class="api">GET /plantoes?setor=</span>
+    <div class="fone">
+      <div class="barra"><span>Histórico</span></div>
+      <div class="cx">08/11 07:00–19:00 [assumido ✔]<br>por Fulana → Beltrano</div>
+      <div class="cx">07/11 19:00–07:00 [assumido ✔]</div>
+      <div class="cx">07/11 07:00–19:00 [aguardando]</div>
+      <div class="esp"></div>
+      <div class="nav"><span>Pacientes</span><span>Pendências</span><span>Plantão</span><b>Histórico</b></div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Backend
+backend/node_modules/
+backend/.env
+backend/data/
+*.tmp
+
+# Flutter / Dart (o mobile/.gitignore cobre o resto)
+mobile/build/
+mobile/.dart_tool/
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
