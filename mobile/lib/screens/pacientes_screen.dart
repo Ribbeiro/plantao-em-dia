@@ -79,7 +79,8 @@ class _PacientesScreenState extends ConsumerState<PacientesScreen> {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                  // Espaço extra no fim para o botão "Admitir" não cobrir o último leito.
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
                   sliver: SliverList.builder(
                     itemCount: filtrados.length,
                     itemBuilder: (_, i) => CardPaciente(paciente: filtrados[i]),
@@ -119,6 +120,8 @@ class _Resumo extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         child: Row(
+          // Alinha os números pelo topo mesmo quando o rótulo tem duas linhas.
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             item('${lista.length}', 'pacientes', Theme.of(context).colorScheme.primary),
             item('$alto', 'risco alto', CoresClinicas.alto),

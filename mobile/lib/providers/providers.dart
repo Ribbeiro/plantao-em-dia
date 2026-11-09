@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/movimentacao.dart';
 import '../models/paciente.dart';
 import '../models/pendencia.dart';
 import '../models/plantao.dart';
@@ -130,6 +131,14 @@ final pacienteProvider = FutureProvider.autoDispose.family<PacienteDetalhe, Stri
   (ref, id) => ref.watch(apiProvider).paciente(id),
 );
 
+final leitosProvider = FutureProvider.autoDispose.family<List<Leito>, String>(
+  (ref, setorId) => ref.watch(apiProvider).leitos(setorId),
+);
+
+final saidasProvider = FutureProvider.autoDispose.family<List<PacienteSaida>, String>(
+  (ref, setorId) => ref.watch(apiProvider).saidasRecentes(setorId),
+);
+
 final pendenciasProvider = FutureProvider.autoDispose.family<PendenciasSetor, String>(
   (ref, setorId) => ref.watch(apiProvider).pendencias(setorId),
 );
@@ -146,5 +155,8 @@ final plantaoProvider = FutureProvider.autoDispose.family<Plantao, String>(
 void atualizarDadosDoSetor(WidgetRef ref, String setorId, {String? pacienteId}) {
   ref.invalidate(pacientesProvider(setorId));
   ref.invalidate(pendenciasProvider(setorId));
+  ref.invalidate(leitosProvider(setorId));
+  ref.invalidate(saidasProvider(setorId));
+  ref.invalidate(setoresProvider);
   if (pacienteId != null) ref.invalidate(pacienteProvider(pacienteId));
 }

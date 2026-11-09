@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../services/notificacoes_service.dart';
 import '../widgets/marca.dart';
+import 'admitir_paciente_screen.dart';
 import 'historico_screen.dart';
 import 'passagem_plantao_screen.dart';
 import 'pacientes_screen.dart';
@@ -112,6 +113,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
       body: abas[_aba],
+      floatingActionButton: _aba == 0
+          ? FloatingActionButton.extended(
+              heroTag: 'admitir',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AdmitirPacienteScreen(setorId: setor.id, setorNome: setor.nome),
+                ),
+              ),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Admitir'),
+            )
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _aba,
         onDestinationSelected: (i) => setState(() => _aba = i),

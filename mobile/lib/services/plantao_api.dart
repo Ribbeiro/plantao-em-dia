@@ -1,6 +1,7 @@
 import '../models/intercorrencia.dart';
 import '../models/json_utils.dart';
 import '../models/medicacao.dart';
+import '../models/movimentacao.dart';
 import '../models/paciente.dart';
 import '../models/pendencia.dart';
 import '../models/plantao.dart';
@@ -29,6 +30,58 @@ class PlantaoApi {
 
   Future<PacienteDetalhe> paciente(String id) async =>
       PacienteDetalhe.fromJson(_mapa(await _c.get<dynamic>('/pacientes/$id')));
+
+  Future<List<Leito>> leitos(String setorId) async =>
+      jsonLista(await _c.get<dynamic>('/setores/$setorId/leitos'), Leito.fromJson);
+
+  /// Dá entrada (admissão) de um paciente num leito livre.
+  Future<PacienteResumo> admitirPaciente(
+    String setorId, {
+    required String nome,
+    required int idade,
+    required String sexo,
+    required String leito,
+    required String diagnostico,
+    required Risco risco,
+    List<String> alergias = const [],
+    List<String> dispositivos = const [],
+    String historico = '',
+    String dieta = '',
+  }) async => PacienteResumo.fromJson(
+    _mapa(
+      await _c.post<dynamic>('/setores/$setorId/pacientes', {
+        'nome': nome,
+        'idade': idade,
+        'sexo': sexo,
+        'leito': leito,
+        'diagnostico': diagnostico,
+        'risco': risco.name,
+        'alergias': alergias,
+        'dispositivos': dispositivos,
+        'historico': historico,
+        'dieta': dieta,
+      }),
+    ),
+  );
+
+  /// Registra a saída do paciente (alta, transferência ou óbito) e libera o leito.
+  Future<PacienteDetalhe> darAlta(
+    String pacienteId, {
+    required TipoSaida tipo,
+    String destino = '',
+    String observacao = '',
+  }) async => PacienteDetalhe.fromJson(
+    _mapa(
+      await _c.post<dynamic>('/pacientes/$pacienteId/alta', {
+        'tipo': tipo.valor,
+        'destino': destino,
+        'observacao': observacao,
+      }),
+    ),
+  );
+
+  Future<List<PacienteSaida>> saidasRecentes(String setorId) async =>
+      jsonLista(await _c.get<dynamic>('/setores/$setorId/altas'), PacienteSaida.fromJson);
 
   Future<SinaisVitais> registrarSinais(
     String pacienteId, {

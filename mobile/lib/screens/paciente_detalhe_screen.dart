@@ -9,6 +9,7 @@ import '../providers/providers.dart';
 import '../utils/formatos.dart';
 import '../widgets/estado_async.dart';
 import '../widgets/indicadores.dart';
+import 'dar_alta_screen.dart';
 import 'medicacoes_checklist.dart';
 import 'registrar_intercorrencia_screen.dart';
 import 'registrar_sinais_screen.dart';
@@ -43,8 +44,13 @@ class _PacienteDetalheScreenState extends ConsumerState<PacienteDetalheScreen> w
     if (salvou == true) _atualizar();
   }
 
+  Future<void> _registrarSaida(PacienteDetalhe p) async {
+    final saiu = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => DarAltaScreen(paciente: p)));
+    if (saiu == true && mounted) Navigator.of(context).pop();
+  }
+
   Widget? _botao(PacienteDetalhe? p) {
-    if (p == null) return null;
+    if (p == null || !p.internado) return null;
     return switch (_tabs.index) {
       0 => FloatingActionButton.extended(
         onPressed: () => _abrir(RegistrarSinaisScreen(paciente: p)),
@@ -72,6 +78,21 @@ class _PacienteDetalheScreenState extends ConsumerState<PacienteDetalheScreen> w
         title: Text(p == null ? 'Paciente' : 'Leito ${p.leito}'),
         actions: [
           IconButton(tooltip: 'Atualizar', onPressed: () => ref.invalidate(provider), icon: const Icon(Icons.refresh)),
+          if (p != null && p.internado)
+            PopupMenuButton<String>(
+              tooltip: 'Mais opções',
+              onSelected: (_) => _registrarSaida(p),
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'saida',
+                  child: ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Alta / transferência'),
+                    subtitle: Text('Libera o leito'),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
       floatingActionButton: _botao(p),
@@ -168,8 +189,26 @@ class _Cabecalho extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (p.saida case final s?)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: tema.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${s.tipo.rotulo} em ${dataHora(s.em)} por ${s.por}'
+                  '${s.destino.isEmpty ? '' : ' · ${s.destino}'}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
             Text(p.nome, style: tema.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            Text('${p.idade} ${p.idade == 1 ? 'ano' : 'anos'} · ${p.sexo} · internado(a) há $dias dia(s)'),
+            Text(
+              '${p.idade} ${p.idade == 1 ? 'ano' : 'anos'} · ${p.sexo} · '
+              '${dias == 0 ? 'admitido(a) hoje' : 'internado(a) há $dias dia(s)'}',
+            ),
             const SizedBox(height: 8),
             Text(p.diagnostico, style: tema.textTheme.titleSmall),
             const SizedBox(height: 8),

@@ -39,7 +39,8 @@ O **Plantão em Dia** organiza o turno em um só lugar:
 4. reúne as pendências do setor (medicações atrasadas, exames, procedimentos e pareceres);
 5. ao tocar em **"Encerrar meu turno"**, gera o **SBAR de cada paciente** a partir dos registros do turno;
 6. quem assume abre o resumo e toca em **"Li e assumo o plantão"**, registrando nome e horário;
-7. guarda o histórico de plantões do setor.
+7. guarda o histórico de plantões do setor;
+8. dá **entrada (admissão)** de pacientes em leitos livres e registra a **saída** (alta, transferência ou óbito), que libera o leito e aparece no resumo do plantão.
 
 > Como o app ajuda cada profissional (enfermagem, médicos, residentes, gestão), o que já existe sobre o tema (SBAR, I-PASS, OMS, Tasy, MV, Epic…) e o que diferencia a nossa proposta: [`docs/IDEIA_E_REFERENCIAS.md`](docs/IDEIA_E_REFERENCIAS.md).
 
@@ -78,6 +79,9 @@ Pesquisa aplicada exclusivamente a profissionais da saúde que trabalham com tro
 | Resumo automático no formato SBAR | Plantão → Encerrar meu turno | `POST /plantoes`, `GET /plantoes/:id` |
 | Confirmação de leitura por quem assume | Resumo SBAR → Li e assumo o plantão | `POST /plantoes/:id/confirmar` |
 | Histórico dos plantões | Histórico | `GET /plantoes?setor=` |
+| Admissão de paciente em leito livre | Pacientes → botão **Admitir** | `GET /setores/:id/leitos`, `POST /setores/:id/pacientes` |
+| Alta, transferência ou óbito (libera o leito) | Detalhe → menu ⋮ → **Alta / transferência** | `POST /pacientes/:id/alta` |
+| Saídas recentes do setor | Histórico | `GET /setores/:id/altas` |
 
 Todas as telas que usam a API têm estado de **carregando**, **erro com "Tentar novamente"** e **vazio**. A interface é toda em português, com botões grandes e poucos toques por registro.
 
@@ -94,7 +98,9 @@ O protótipo de baixa fidelidade está em [`docs/prototipo/prototipo_baixa_fidel
 | 5 | Checklist de medicações | ✅ |
 | 6 | Pendências do setor | ✅ |
 | 7 | Passagem de plantão + resumo SBAR + confirmação | ✅ |
-| 8 | Histórico de plantões | ✅ |
+| 8 | Histórico de plantões e saídas recentes | ✅ |
+| 9 | Admitir paciente (mapa de leitos livres) | ✅ |
+| 10 | Alta / transferência / óbito com checklist de saída segura | ✅ |
 
 Prints do app rodando contra a API (versão web em tamanho de celular; se quiser, troque pelos prints do emulador em [`docs/prints/`](docs/prints/)):
 
@@ -105,6 +111,10 @@ Prints do app rodando contra a API (versão web em tamanho de celular; se quiser
 | Pendências | Encerrar turno | Resumo SBAR | Plantão assumido |
 |---|---|---|---|
 | <img src="docs/prints/06_pendencias.jpg" width="160" alt="Pendências do setor"> | <img src="docs/prints/07_encerrar_turno.jpg" width="160" alt="Encerrar meu turno"> | <img src="docs/prints/07_resumo_sbar.jpg" width="160" alt="Resumo SBAR"> | <img src="docs/prints/07_plantao_assumido.jpg" width="160" alt="Plantão assumido"> |
+
+| Admitir paciente | Alta / transferência | Saídas no histórico |
+|---|---|---|
+| <img src="docs/prints/08_admitir_paciente.jpg" width="160" alt="Admissão de paciente"> | <img src="docs/prints/09_alta_transferencia.jpg" width="160" alt="Transferência com checklist"> | <img src="docs/prints/10_historico_saidas.jpg" width="160" alt="Saídas recentes no histórico"> |
 
 ## Arquitetura
 
@@ -157,14 +167,18 @@ Base: `http://localhost:3000` (no emulador Android: `http://10.0.2.2:3000`). Tod
 | `GET` | `/health` | Verifica se a API está no ar |
 | `POST` | `/auth/login` | `{usuario, senha}` → `{token, usuario}` (JWT com nome, cargo e setor) |
 | `GET` | `/setores` | Setores com total de pacientes, risco alto e medicações atrasadas |
-| `GET` | `/setores/:id/pacientes` | Pacientes do setor com leito, risco, alergias, alertas e nº de pendências |
+| `GET` | `/setores/:id/pacientes` | Pacientes internados no setor com leito, risco, alergias, alertas e nº de pendências |
+| `GET` | `/setores/:id/leitos` | Mapa de leitos (livre/ocupado e por quem) |
+| `POST` | `/setores/:id/pacientes` | Admissão: `{nome, idade, sexo: F\|M, leito, diagnostico, risco, alergias[], dispositivos[], historico?, dieta?}`. 409 se o leito estiver ocupado; cria a pendência "sinais vitais de admissão" (1 h) |
+| `POST` | `/pacientes/:id/alta` | Saída: `{tipo: alta\|transferencia\|obito, destino?, observacao?}`. Libera o leito; 409 se o paciente já saiu |
+| `GET` | `/setores/:id/altas` | Saídas dos últimos 7 dias |
 | `GET` | `/pacientes/:id` | Detalhe, últimos sinais vitais, prescrições do dia, intercorrências e pendências |
 | `POST` | `/pacientes/:id/sinais-vitais` | `{pas, pad, fc, fr, temperatura, satO2, dor, observacao}` (faixas validadas) |
 | `POST` | `/pacientes/:id/intercorrencias` | `{descricao, gravidade: leve\|moderada\|grave, horario?}` |
 | `PATCH` | `/medicacoes/:id` | `{status: administrada\|pendente}` – registra horário e responsável (ou desfaz) |
 | `GET` | `/pendencias?setor=` | Medicações atrasadas, exames, procedimentos e retornos em aberto |
 | `PATCH` | `/pendencias/:id` | `{status: concluida\|pendente}` |
-| `POST` | `/plantoes` | `{setorId, observacoes?, inicio?}` – encerra o turno e gera o SBAR por paciente |
+| `POST` | `/plantoes` | `{setorId, observacoes?, inicio?}` – encerra o turno e gera o SBAR por paciente, com as admissões e saídas do turno |
 | `GET` | `/plantoes?setor=` | Histórico (sem o resumo completo) |
 | `GET` | `/plantoes/:id` | Plantão com o resumo SBAR |
 | `POST` | `/plantoes/:id/confirmar` | Quem assume confirma a leitura (registra nome e horário). Quem encerrou não pode confirmar o próprio plantão |
@@ -230,13 +244,15 @@ Senha de todos: **`plantao123`**
 
 Roteiro de demonstração: entre como `ana.enfermeira` → Clínica Médica → administre uma medicação atrasada → registre sinais vitais com SatO2 89% (alerta) → aba **Plantão** → **Encerrar meu turno**. Saia, entre como `bruno.tecnico` → aba **Plantão** → abra o plantão em "Para você assumir" → **Li e assumo o plantão**.
 
-Dados do seed: 2 setores (Clínica Médica, 12 leitos; Pediatria, 10 leitos), 20 pacientes fictícios, cerca de 170 doses de medicação no período de 24 h, sinais vitais, intercorrências e pendências.
+Admissão e alta: na lista de pacientes toque em **Admitir**, escolha o leito livre (CM-12 na Clínica Médica, PED-10 na Pediatria) e preencha os dados. Para dar alta, abra o paciente → menu ⋮ → **Alta / transferência**.
+
+Dados do seed: 2 setores (Clínica Médica, 12 leitos; Pediatria, 10 leitos; um leito livre em cada), 20 pacientes fictícios, cerca de 170 doses de medicação no período de 24 h, sinais vitais, intercorrências e pendências.
 
 ## Testes
 
 ```bash
-cd backend && npm test     # 9 testes: login, autenticação, pacientes, sinais vitais, medicações, pendências, SBAR e fluxo completo do plantão
-cd mobile && flutter test  # 19 testes: parsing dos models, tradução de erros da API, alertas de sinais vitais, token e widgets
+cd backend && npm test     # 10 testes: login, autenticação, pacientes, sinais vitais, medicações, pendências, admissão/alta, SBAR e fluxo completo do plantão
+cd mobile && flutter test  # 20 testes: parsing dos models, tradução de erros da API, alertas de sinais vitais, token e widgets
 cd mobile && flutter analyze
 ```
 

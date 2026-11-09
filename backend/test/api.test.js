@@ -170,3 +170,61 @@ test('fluxo completo: encerrar turno gera SBAR, histórico e confirmação de le
   const det = await chamar('GET', `/plantoes/${plantao.id}`, { token: bruno });
   assert.equal(det.corpo.resumo.length, 11);
 });
+
+test('admissão em leito livre e alta liberam/ocupam o leito', async () => {
+  const token = await login('diego.enfermeiro');
+
+  const leitos = await chamar('GET', '/setores/ped/leitos', { token });
+  assert.equal(leitos.status, 200);
+  assert.equal(leitos.corpo.length, 10);
+  const livre = leitos.corpo.find((l) => !l.ocupado);
+  const ocupado = leitos.corpo.find((l) => l.ocupado);
+  assert.ok(livre, 'a Pediatria do seed tem um leito livre');
+
+  const novo = { nome: 'Teste Admissão Silva', idade: 7, sexo: 'F', diagnostico: 'Bronquiolite', risco: 'medio', alergias: 'Dipirona, Látex' };
+
+  const invalido = await chamar('POST', '/setores/ped/pacientes', { token, corpo: { ...novo, idade: 300, leito: 'PED-99' } });
+  assert.equal(invalido.status, 400);
+  assert.equal(invalido.corpo.detalhes.length, 2);
+
+  const conflito = await chamar('POST', '/setores/ped/pacientes', { token, corpo: { ...novo, leito: ocupado.leito } });
+  assert.equal(conflito.status, 409);
+
+  const criado = await chamar('POST', '/setores/ped/pacientes', { token, corpo: { ...novo, leito: livre.leito.toLowerCase() } });
+  assert.equal(criado.status, 201);
+  assert.equal(criado.corpo.leito, livre.leito);
+  assert.deepEqual(criado.corpo.alergias, ['Dipirona', 'Látex']);
+  assert.equal(criado.corpo.pendencias, 1, 'cria a pendência de sinais vitais de admissão');
+
+  const lista = await chamar('GET', '/setores/ped/pacientes', { token });
+  assert.ok(lista.corpo.some((p) => p.id === criado.corpo.id));
+
+  const tipoErrado = await chamar('POST', `/pacientes/${criado.corpo.id}/alta`, { token, corpo: { tipo: 'fuga' } });
+  assert.equal(tipoErrado.status, 400);
+
+  const alta = await chamar('POST', `/pacientes/${criado.corpo.id}/alta`, {
+    token,
+    corpo: { tipo: 'transferencia', destino: 'UTI pediátrica' },
+  });
+  assert.equal(alta.status, 200);
+  assert.equal(alta.corpo.alta.por, 'Diego Martins');
+
+  assert.equal((await chamar('POST', `/pacientes/${criado.corpo.id}/alta`, { token, corpo: { tipo: 'alta' } })).status, 409);
+  const sv = await chamar('POST', `/pacientes/${criado.corpo.id}/sinais-vitais`, {
+    token,
+    corpo: { pas: 100, pad: 60, fc: 100, fr: 24, temperatura: 37, satO2: 97, dor: 0 },
+  });
+  assert.equal(sv.status, 409, 'não registra em paciente que já saiu');
+
+  const depois = await chamar('GET', '/setores/ped/pacientes', { token });
+  assert.ok(!depois.corpo.some((p) => p.id === criado.corpo.id));
+  const pend = await chamar('GET', '/pendencias?setor=ped', { token });
+  assert.ok(!pend.corpo.procedimentos.some((x) => x.pacienteId === criado.corpo.id), 'pendências de quem saiu somem');
+  const altas = await chamar('GET', '/setores/ped/altas', { token });
+  assert.equal(altas.corpo[0].id, criado.corpo.id);
+  const leitosDepois = await chamar('GET', '/setores/ped/leitos', { token });
+  assert.equal(leitosDepois.corpo.find((l) => l.leito === livre.leito).ocupado, false);
+
+  const plantao = await chamar('POST', '/plantoes', { token, corpo: { setorId: 'ped' } });
+  assert.equal(plantao.corpo.movimentacoes.saidas[0].nome, novo.nome, 'SBAR do setor cita a saída no turno');
+});

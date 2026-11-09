@@ -1,4 +1,5 @@
 import 'json_utils.dart';
+import 'movimentacao.dart';
 import 'paciente.dart';
 
 class Profissional {
@@ -106,7 +107,11 @@ class Plantao {
     this.observacoes = '',
     this.resumo = const [],
     this.confirmacao,
+    this.movimentacoes = const Movimentacoes(),
   });
+
+  /// Admissões e saídas do setor durante o turno.
+  final Movimentacoes movimentacoes;
 
   final String id;
   final String setorId;
@@ -140,5 +145,6 @@ class Plantao {
     confirmacao: json['confirmacao'] is Map
         ? Confirmacao.fromJson(Map<String, dynamic>.from(json['confirmacao'] as Map))
         : null,
+    movimentacoes: Movimentacoes.deJson(json['movimentacoes']),
   );
 }

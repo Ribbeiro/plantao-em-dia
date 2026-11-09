@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plantao_em_dia/models/intercorrencia.dart';
+import 'package:plantao_em_dia/models/movimentacao.dart';
 import 'package:plantao_em_dia/models/paciente.dart';
 import 'package:plantao_em_dia/models/pendencia.dart';
 import 'package:plantao_em_dia/models/plantao.dart';
@@ -138,7 +139,14 @@ void main() {
         },
       ],
       'exames': [
-        {'id': 'pend_1', 'tipo': 'exame', 'descricao': 'Hemograma', 'prazo': '2026-11-08T10:00:00Z', 'status': 'pendente', 'vencida': true},
+        {
+          'id': 'pend_1',
+          'tipo': 'exame',
+          'descricao': 'Hemograma',
+          'prazo': '2026-11-08T10:00:00Z',
+          'status': 'pendente',
+          'vencida': true,
+        },
       ],
       'procedimentos': <dynamic>[],
       'retornos': <dynamic>[],
@@ -165,10 +173,7 @@ void main() {
 
   group('alertasSinaisVitais', () {
     test('sinais normais não geram alerta', () {
-      expect(
-        alertasSinaisVitais(pas: 120, pad: 80, fc: 80, fr: 16, temperatura: 36.5, satO2: 97, dor: 2),
-        isEmpty,
-      );
+      expect(alertasSinaisVitais(pas: 120, pad: 80, fc: 80, fr: 16, temperatura: 36.5, satO2: 97, dor: 2), isEmpty);
     });
 
     test('SatO2 < 92% gera alerta visual', () {
@@ -197,6 +202,47 @@ void main() {
 
     test('token malformado é tratado como expirado', () {
       expect(tokenExpirado('abc'), isTrue);
+    });
+  });
+  group('Admissão e alta', () {
+    test('Leito, saída do paciente e movimentações do turno', () {
+      final leitos = [
+        {
+          'leito': 'PED-09',
+          'ocupado': true,
+          'paciente': {'id': 'p9', 'nome': 'Fulano'},
+        },
+        {'leito': 'PED-10', 'ocupado': false, 'paciente': null},
+      ].map(Leito.fromJson).toList();
+      expect(leitos.first.pacienteNome, 'Fulano');
+      expect(leitos.last.ocupado, isFalse);
+
+      final detalhe = PacienteDetalhe.fromJson({
+        'id': 'p1',
+        'nome': 'Teste',
+        'leito': 'CM-01',
+        'dataInternacao': '2026-11-08T10:00:00Z',
+        'alta': {'tipo': 'transferencia', 'destino': 'UTI', 'em': '2026-11-09T02:00:00Z', 'por': 'Ana'},
+      });
+      expect(detalhe.internado, isFalse);
+      expect(detalhe.saida!.tipo, TipoSaida.transferencia);
+      expect(detalhe.saida!.destino, 'UTI');
+      expect(PacienteDetalhe.fromJson({'id': 'p2'}).internado, isTrue);
+
+      final plantao = Plantao.fromJson({
+        'id': 'x',
+        'movimentacoes': {
+          'admissoes': [
+            {'leito': 'CM-12', 'nome': 'Novo', 'por': 'Ana', 'em': '2026-11-09T01:00:00Z'},
+          ],
+          'saidas': [
+            {'leito': 'CM-03', 'nome': 'Velho', 'tipo': 'alta', 'por': 'Ana', 'em': '2026-11-09T01:30:00Z'},
+          ],
+        },
+      });
+      expect(plantao.movimentacoes.admissoes.single.nome, 'Novo');
+      expect(plantao.movimentacoes.saidas.single.tipo, TipoSaida.alta);
+      expect(Plantao.fromJson({'id': 'y'}).movimentacoes.vazio, isTrue);
     });
   });
 }

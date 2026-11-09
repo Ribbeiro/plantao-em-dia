@@ -1,6 +1,7 @@
 import 'intercorrencia.dart';
 import 'json_utils.dart';
 import 'medicacao.dart';
+import 'movimentacao.dart';
 import 'pendencia.dart';
 import 'sinais_vitais.dart';
 
@@ -109,7 +110,13 @@ class PacienteDetalhe extends PacienteResumo {
     required this.medicacoes,
     required this.intercorrencias,
     required this.pendenciasLista,
+    this.saida,
   });
+
+  /// Preenchido quando o paciente já saiu do setor (alta, transferência ou óbito).
+  final Saida? saida;
+
+  bool get internado => saida == null;
 
   final String historico;
   final List<String> dispositivos;
@@ -145,6 +152,7 @@ class PacienteDetalhe extends PacienteResumo {
       medicacoes: jsonLista(json['medicacoes'], Medicacao.fromJson),
       intercorrencias: jsonLista(json['intercorrencias'], Intercorrencia.fromJson),
       pendenciasLista: jsonLista(json['pendenciasLista'], Pendencia.fromJson),
+      saida: Saida.deJson(json['alta']),
     );
   }
 }

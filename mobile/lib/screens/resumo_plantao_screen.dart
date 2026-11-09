@@ -57,6 +57,16 @@ class _ResumoPlantaoScreenState extends ConsumerState<ResumoPlantaoScreen> {
     final texto = StringBuffer('Passagem de plantão – ${p.setorNome}\n')
       ..writeln('${dataHora(p.inicio)} até ${dataHora(p.fim)} · ${p.responsavel.nome}')
       ..writeln(p.observacoes.isEmpty ? '' : 'Observações: ${p.observacoes}\n');
+    for (final a in p.movimentacoes.admissoes) {
+      texto.writeln('Admissão: ${a.nome} – leito ${a.leito} às ${hora(a.em)}');
+    }
+    for (final s in p.movimentacoes.saidas) {
+      texto.writeln(
+        '${s.tipo?.rotulo ?? 'Saída'}: ${s.nome} – leito ${s.leito} às ${hora(s.em)}'
+        '${s.destino.isEmpty ? '' : ' → ${s.destino}'}',
+      );
+    }
+    if (!p.movimentacoes.vazio) texto.writeln();
     for (final s in p.resumo) {
       texto.writeln('${s.texto}\n');
     }
@@ -121,6 +131,27 @@ class _ResumoPlantaoScreenState extends ConsumerState<ResumoPlantaoScreen> {
   }
 }
 
+class _LinhaMovimento extends StatelessWidget {
+  const _LinhaMovimento({required this.icone, required this.cor, required this.texto});
+
+  final IconData icone;
+  final Color cor;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icone, size: 18, color: cor),
+        const SizedBox(width: 6),
+        Expanded(child: Text(texto)),
+      ],
+    ),
+  );
+}
+
 class _Cabecalho extends StatelessWidget {
   const _Cabecalho({required this.plantao});
 
@@ -162,8 +193,28 @@ class _Cabecalho extends StatelessWidget {
                 child: Text('Observações: ${p.observacoes}'),
               ),
             ],
+            if (!p.movimentacoes.vazio) ...[
+              const SizedBox(height: 8),
+              Text('Movimentação no turno', style: tema.textTheme.labelLarge),
+              for (final a in p.movimentacoes.admissoes)
+                _LinhaMovimento(
+                  icone: Icons.login,
+                  cor: CoresClinicas.ok,
+                  texto: 'Admissão: ${a.nome} no leito ${a.leito} às ${hora(a.em)}',
+                ),
+              for (final s in p.movimentacoes.saidas)
+                _LinhaMovimento(
+                  icone: Icons.logout,
+                  cor: CoresClinicas.medio,
+                  texto:
+                      '${s.tipo?.rotulo ?? 'Saída'}: ${s.nome} (leito ${s.leito}) às ${hora(s.em)}'
+                      '${s.destino.isEmpty ? '' : ' → ${s.destino}'}',
+                ),
+            ],
             const SizedBox(height: 12),
             Row(
+              // Alinha os números pelo topo mesmo quando o rótulo tem duas linhas.
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 numero(p.totais.pacientes, 'pacientes', tema.colorScheme.primary),
                 numero(

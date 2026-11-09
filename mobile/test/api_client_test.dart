@@ -6,17 +6,19 @@ void main() {
   RequestOptions opcoes([String caminho = '/setores']) => RequestOptions(path: caminho);
 
   test('erro da API em JSON vira mensagem com detalhes', () {
-    final e = traduzirErro(DioException(
-      requestOptions: opcoes(),
-      response: Response(
+    final e = traduzirErro(
+      DioException(
         requestOptions: opcoes(),
-        statusCode: 400,
-        data: {
-          'erro': 'Dados inválidos',
-          'detalhes': ['SatO2 deve ser no máximo 100'],
-        },
+        response: Response(
+          requestOptions: opcoes(),
+          statusCode: 400,
+          data: {
+            'erro': 'Dados inválidos',
+            'detalhes': ['SatO2 deve ser no máximo 100'],
+          },
+        ),
       ),
-    ));
+    );
     expect(e.status, 400);
     expect(e.mensagem, 'Dados inválidos');
     expect(e.toString(), contains('SatO2 deve ser no máximo 100'));
@@ -34,10 +36,12 @@ void main() {
   });
 
   test('resposta sem corpo JSON usa o código HTTP', () {
-    final e = traduzirErro(DioException(
-      requestOptions: opcoes(),
-      response: Response(requestOptions: opcoes(), statusCode: 502, data: '<html>'),
-    ));
+    final e = traduzirErro(
+      DioException(
+        requestOptions: opcoes(),
+        response: Response(requestOptions: opcoes(), statusCode: 502, data: '<html>'),
+      ),
+    );
     expect(e.mensagem, contains('502'));
   });
 }

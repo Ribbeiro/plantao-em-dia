@@ -25,6 +25,41 @@ function setorOuErro(id) {
   return buscar('setores', id, `Setor "${id}" não encontrado`);
 }
 
+/** Pacientes internados (sem alta) – opcionalmente de um setor. */
+function internados(setorId) {
+  return db.colecao('pacientes').filter((p) => !p.alta && (!setorId || p.setorId === setorId));
+}
+
+/** Leitos do setor no formato "CM-01", "CM-02"... */
+function leitosDoSetor(setor) {
+  const prefixo = setor.id.toUpperCase();
+  return Array.from({ length: setor.leitos }, (_, i) => `${prefixo}-${String(i + 1).padStart(2, '0')}`);
+}
+
+function internadoOuErro(id) {
+  const p = buscar('pacientes', id, 'Paciente não encontrado');
+  if (p.alta) throw new ErroHttp(409, `${p.nome} já saiu do setor (${ROTULO_SAIDA[p.alta.tipo]}) em ${dataBr(p.alta.em)}`);
+  return p;
+}
+
+const ROTULO_SAIDA = { alta: 'alta hospitalar', transferencia: 'transferência', obito: 'óbito' };
+
+const dataBr = (iso) =>
+  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+/** Aceita lista de textos ou texto separado por vírgula. */
+function listaDeTextos(valor, rotulo, erros) {
+  if (valor === undefined || valor === null || valor === '') return [];
+  const lista = Array.isArray(valor) ? valor : typeof valor === 'string' ? valor.split(',') : null;
+  if (!lista || lista.some((x) => typeof x !== 'string')) {
+    erros.push(`${rotulo} deve ser uma lista de textos`);
+    return [];
+  }
+  const limpa = [...new Set(lista.map((x) => x.trim()).filter(Boolean))];
+  if (limpa.length > 20 || limpa.some((x) => x.length > 80)) erros.push(`${rotulo}: no máximo 20 itens de até 80 caracteres`);
+  return limpa;
+}
+
 function resumoPaciente(p, agora = new Date()) {
   const atrasadas = db.colecao('medicacoes').filter((m) => m.pacienteId === p.id && medicacaoAtrasada(m, agora)).length;
   const abertas = db.colecao('pendencias').filter((x) => x.pacienteId === p.id && x.status === 'pendente').length;
@@ -72,7 +107,7 @@ router.use(exigirLogin);
 router.get('/setores', (_req, res) => {
   const agora = new Date();
   const setores = db.colecao('setores').map((s) => {
-    const pacientes = db.colecao('pacientes').filter((p) => p.setorId === s.id);
+    const pacientes = internados(s.id);
     const resumos = pacientes.map((p) => resumoPaciente(p, agora));
     return {
       ...s,
@@ -87,12 +122,111 @@ router.get('/setores', (_req, res) => {
 router.get('/setores/:id/pacientes', (req, res) => {
   setorOuErro(req.params.id);
   const agora = new Date();
-  const lista = db
-    .colecao('pacientes')
-    .filter((p) => p.setorId === req.params.id)
+  const lista = internados(req.params.id)
     .sort(ordenarLeito)
     .map((p) => resumoPaciente(p, agora));
   res.json(lista);
+});
+
+// Mapa de leitos do setor (livres e ocupados) – usado na admissão.
+router.get('/setores/:id/leitos', (req, res) => {
+  const setor = setorOuErro(req.params.id);
+  const ocupados = new Map(internados(setor.id).map((p) => [p.leito, p]));
+  res.json(
+    leitosDoSetor(setor).map((leito) => {
+      const p = ocupados.get(leito);
+      return { leito, ocupado: Boolean(p), paciente: p ? { id: p.id, nome: p.nome } : null };
+    }),
+  );
+});
+
+// Admissão (entrada) de paciente em um leito livre.
+router.post('/setores/:id/pacientes', (req, res) => {
+  const setor = setorOuErro(req.params.id);
+  const erros = [];
+  let dados = {};
+  try {
+    dados = validar(req.body, {
+      nome: { tipo: 'string', obrigatorio: true, maxLen: 120, rotulo: 'Nome' },
+      idade: { tipo: 'inteiro', obrigatorio: true, min: 0, max: 120, rotulo: 'Idade' },
+      sexo: { tipo: 'string', obrigatorio: true, opcoes: ['F', 'M'], rotulo: 'Sexo' },
+      leito: { tipo: 'string', obrigatorio: true, rotulo: 'Leito' },
+      diagnostico: { tipo: 'string', obrigatorio: true, maxLen: 200, rotulo: 'Diagnóstico' },
+      risco: { tipo: 'string', obrigatorio: true, opcoes: ['baixo', 'medio', 'alto'], rotulo: 'Risco' },
+      historico: { tipo: 'string', maxLen: 1000, rotulo: 'Histórico' },
+      dieta: { tipo: 'string', maxLen: 200, rotulo: 'Dieta' },
+    });
+  } catch (e) {
+    if (!(e instanceof ErroHttp)) throw e;
+    erros.push(...e.detalhes);
+  }
+  // Junta todos os problemas numa única resposta (campos, listas e leito).
+  const alergias = listaDeTextos(req.body?.alergias, 'Alergias', erros);
+  const dispositivos = listaDeTextos(req.body?.dispositivos, 'Dispositivos', erros);
+  const leito = typeof req.body?.leito === 'string' ? req.body.leito.trim().toUpperCase() : '';
+  if (leito && !leitosDoSetor(setor).includes(leito)) erros.push(`Leito ${leito} não existe em ${setor.nome}`);
+  if (erros.length) throw new ErroHttp(400, 'Dados inválidos', erros);
+  const ocupante = internados(setor.id).find((p) => p.leito === leito);
+  if (ocupante) throw new ErroHttp(409, `O leito ${leito} já está ocupado por ${ocupante.nome}`);
+
+  const agora = new Date();
+  const paciente = db.inserir('pacientes', {
+    setorId: setor.id,
+    leito,
+    nome: dados.nome,
+    idade: dados.idade,
+    sexo: dados.sexo,
+    diagnostico: dados.diagnostico,
+    alergias,
+    risco: dados.risco,
+    historico: dados.historico || '',
+    dispositivos,
+    dieta: dados.dieta || '',
+    dataInternacao: agora.toISOString(),
+    admitidoPor: req.usuario.nome,
+  });
+  // Rotina de admissão: primeira aferição de sinais vitais em até 1 hora.
+  db.inserir('pendencias', {
+    pacienteId: paciente.id,
+    tipo: 'procedimento',
+    descricao: 'Admissão: aferir sinais vitais e conferir pulseira de identificação',
+    prazo: new Date(agora.getTime() + HORA).toISOString(),
+    status: 'pendente',
+    criadoEm: agora.toISOString(),
+  });
+  res.status(201).json(resumoPaciente(paciente, agora));
+});
+
+// Saída do paciente: alta hospitalar, transferência ou óbito. O leito fica livre.
+router.post('/pacientes/:id/alta', (req, res) => {
+  const p = internadoOuErro(req.params.id);
+  const dados = validar(req.body, {
+    tipo: { tipo: 'string', obrigatorio: true, opcoes: Object.keys(ROTULO_SAIDA), rotulo: 'Tipo de saída' },
+    destino: { tipo: 'string', maxLen: 200, rotulo: 'Destino' },
+    observacao: { tipo: 'string', maxLen: 1000, rotulo: 'Observação' },
+  });
+  p.alta = {
+    tipo: dados.tipo,
+    destino: dados.destino || '',
+    observacao: dados.observacao || '',
+    em: new Date().toISOString(),
+    por: req.usuario.nome,
+  };
+  db.salvar();
+  res.json({ ...p, ...resumoPaciente(p) });
+});
+
+// Altas e transferências recentes do setor (últimos 7 dias).
+router.get('/setores/:id/altas', (req, res) => {
+  setorOuErro(req.params.id);
+  const limite = Date.now() - 7 * 24 * HORA;
+  res.json(
+    db
+      .colecao('pacientes')
+      .filter((p) => p.setorId === req.params.id && p.alta && new Date(p.alta.em).getTime() >= limite)
+      .sort((a, b) => new Date(b.alta.em) - new Date(a.alta.em))
+      .map((p) => ({ id: p.id, nome: p.nome, leito: p.leito, idade: p.idade, sexo: p.sexo, diagnostico: p.diagnostico, alta: p.alta })),
+  );
 });
 
 router.get('/pacientes/:id', (req, res) => {
@@ -121,7 +255,7 @@ router.get('/pacientes/:id', (req, res) => {
 });
 
 router.post('/pacientes/:id/sinais-vitais', (req, res) => {
-  const p = buscar('pacientes', req.params.id, 'Paciente não encontrado');
+  const p = internadoOuErro(req.params.id);
   const dados = validar(req.body, {
     pas: { tipo: 'inteiro', obrigatorio: true, min: 40, max: 300, rotulo: 'PA sistólica' },
     pad: { tipo: 'inteiro', obrigatorio: true, min: 20, max: 200, rotulo: 'PA diastólica' },
@@ -145,7 +279,7 @@ router.post('/pacientes/:id/sinais-vitais', (req, res) => {
 });
 
 router.post('/pacientes/:id/intercorrencias', (req, res) => {
-  const p = buscar('pacientes', req.params.id, 'Paciente não encontrado');
+  const p = internadoOuErro(req.params.id);
   const dados = validar(req.body, {
     descricao: { tipo: 'string', obrigatorio: true, maxLen: 1000, rotulo: 'Descrição' },
     gravidade: { tipo: 'string', obrigatorio: true, opcoes: ['leve', 'moderada', 'grave'], rotulo: 'Gravidade' },
@@ -205,7 +339,7 @@ router.get('/pendencias', (req, res) => {
   if (!setorId) throw new ErroHttp(400, 'Informe o setor: /pendencias?setor=<id>');
   setorOuErro(setorId);
   const agora = new Date();
-  const pacientes = new Map(db.colecao('pacientes').filter((p) => p.setorId === setorId).map((p) => [p.id, p]));
+  const pacientes = new Map(internados(setorId).map((p) => [p.id, p]));
   const comPaciente = (x) => {
     const p = pacientes.get(x.pacienteId);
     return { ...x, paciente: { id: p.id, nome: p.nome, leito: p.leito, risco: p.risco } };
@@ -258,8 +392,20 @@ router.post('/plantoes', (req, res) => {
     inicio = ultimo && new Date(ultimo.fim) > limite ? new Date(ultimo.fim) : limite;
   }
 
-  const pacientes = db.colecao('pacientes').filter((p) => p.setorId === setorId);
+  const pacientes = internados(setorId);
   const ids = new Set(pacientes.map((p) => p.id));
+  const noTurno = (iso) => iso && new Date(iso) >= inicio && new Date(iso) <= fim;
+  const movimentacoes = {
+    // Inclui quem foi admitido e já saiu no mesmo turno.
+    admissoes: db
+      .colecao('pacientes')
+      .filter((p) => p.setorId === setorId && p.admitidoPor && noTurno(p.dataInternacao))
+      .map((p) => ({ leito: p.leito, nome: p.nome, por: p.admitidoPor, em: p.dataInternacao })),
+    saidas: db
+      .colecao('pacientes')
+      .filter((p) => p.setorId === setorId && p.alta && noTurno(p.alta.em))
+      .map((p) => ({ leito: p.leito, nome: p.nome, tipo: p.alta.tipo, destino: p.alta.destino, por: p.alta.por, em: p.alta.em })),
+  };
   const doSetor = (c) => db.colecao(c).filter((x) => ids.has(x.pacienteId));
   const resumo = gerarSbarSetor({
     pacientes,
@@ -278,6 +424,7 @@ router.post('/plantoes', (req, res) => {
     inicio: inicio.toISOString(),
     fim: fim.toISOString(),
     observacoes: dados.observacoes || '',
+    movimentacoes,
     totais: {
       pacientes: resumo.length,
       medicacoesAtrasadas: resumo.reduce((t, r) => t + r.medicacoesAtrasadas, 0),

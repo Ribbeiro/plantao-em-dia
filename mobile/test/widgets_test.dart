@@ -6,29 +6,39 @@ import 'package:plantao_em_dia/screens/pacientes_screen.dart';
 import 'package:plantao_em_dia/services/api_client.dart';
 import 'package:plantao_em_dia/widgets/estado_async.dart';
 
-Widget _app(Widget filho) => ProviderScope(child: MaterialApp(home: Scaffold(body: filho)));
+Widget _app(Widget filho) => ProviderScope(
+  child: MaterialApp(home: Scaffold(body: filho)),
+);
 
 void main() {
   testWidgets('EstadoAsync mostra erro com "Tentar novamente"', (tester) async {
     var tentativas = 0;
-    await tester.pumpWidget(_app(EstadoAsync<int>(
-      valor: const AsyncValue.error(ApiException('Sem conexão'), StackTrace.empty),
-      aoTentarNovamente: () => tentativas++,
-      construtor: (_) => const SizedBox(),
-    )));
+    await tester.pumpWidget(
+      _app(
+        EstadoAsync<int>(
+          valor: const AsyncValue.error(ApiException('Sem conexão'), StackTrace.empty),
+          aoTentarNovamente: () => tentativas++,
+          construtor: (_) => const SizedBox(),
+        ),
+      ),
+    );
     expect(find.text('Sem conexão'), findsOneWidget);
     await tester.tap(find.text('Tentar novamente'));
     expect(tentativas, 1);
   });
 
   testWidgets('EstadoAsync mostra estado vazio', (tester) async {
-    await tester.pumpWidget(_app(EstadoAsync<List<int>>(
-      valor: const AsyncValue.data([]),
-      aoTentarNovamente: () {},
-      estaVazio: (l) => l.isEmpty,
-      mensagemVazio: 'Nenhum paciente',
-      construtor: (_) => const SizedBox(),
-    )));
+    await tester.pumpWidget(
+      _app(
+        EstadoAsync<List<int>>(
+          valor: const AsyncValue.data([]),
+          aoTentarNovamente: () {},
+          estaVazio: (l) => l.isEmpty,
+          mensagemVazio: 'Nenhum paciente',
+          construtor: (_) => const SizedBox(),
+        ),
+      ),
+    );
     expect(find.text('Nenhum paciente'), findsOneWidget);
   });
 
